@@ -46,6 +46,7 @@
 - **Feishu Private DM Relay** — Optional companion service for delivering review results as Feishu private messages
 - **Async Processing** — ThreadPoolExecutor-based worker queue prevents webhook timeouts
 - **Review History** — SQLite-backed persistence with dedup, queried via dashboard API
+- **Configurable GitLab Auto Merge** — Optionally merge reviews that meet configured score, risk, advice, and target-branch conditions
 - **Rich Dashboard** — React + Vite frontend with review history, project statistics, developer analytics
 - **Review Styles** — Professional, Concise, Strict, Sarcastic, Gentle, Humorous (Jinja2-templated prompts)
 - **Docker Ready** — One-command deployment via docker compose
@@ -90,6 +91,7 @@ Webhook → Flask route → ThreadPool queue → Worker thread
   ├─ Resolve line numbers (map comments to diff lines)
   ├─ Post comment back to MR/PR/commit
   ├─ Fire event → save to SQLite + send IM notification
+  ├─ (Optional) Auto-merge approved GitLab MRs that match configured conditions
   └─ (Optional) Extra webhook → feishu-relay → private DM
 ```
 
@@ -209,6 +211,11 @@ cp conf/.env.dist conf/.env
 | `REVIEW_MAX_TOKENS` | `10000` | Max tokens per review (diff + context) |
 | `PUSH_REVIEW_ENABLED` | `1` | Enable review on push events |
 | `MERGE_REVIEW_ONLY_PROTECTED_BRANCHES_ENABLED` | `0` | Only review MRs targeting protected branches |
+| `GITLAB_AUTO_MERGE_ENABLED` | `0` | Enable GitLab MR auto merge after review |
+| `GITLAB_AUTO_MERGE_MIN_SCORE` | `90` | Minimum AI review score required for auto merge |
+| `GITLAB_AUTO_MERGE_ALLOWED_RISK_LEVELS` | `low,低` | Comma-separated risk levels allowed to auto merge |
+| `GITLAB_AUTO_MERGE_ALLOWED_ADVICES` | `approved,建议合并` | Comma-separated merge advice values allowed to auto merge |
+| `GITLAB_AUTO_MERGE_TARGET_BRANCHES` | `main` | Comma-separated target branches allowed to auto merge |
 | `HTTP_TIMEOUT_SECONDS` | `10` | HTTP request timeout |
 
 ### Context Window

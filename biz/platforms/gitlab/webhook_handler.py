@@ -196,6 +196,22 @@ class MergeRequestHandler:
             logger.error(f"Failed to add note: {response.status_code}")
             logger.error(response.text)
 
+    def merge_merge_request(self, sha: str):
+        url = urljoin(
+            f"{self.gitlab_url}/",
+            f"api/v4/projects/{self.project_id}/merge_requests/{self.merge_request_iid}/merge",
+        )
+        response = requests.put(
+            url,
+            headers={"Private-Token": self.gitlab_token},
+            json={"sha": sha},
+            verify=False,
+            timeout=HTTP_TIMEOUT_SECONDS,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"GitLab auto-merge failed with HTTP {response.status_code}")
+        logger.info("Merge request auto-merged successfully.")
+
     def target_branch_protected(self) -> bool:
         url = urljoin(
             f"{self.gitlab_url}/",

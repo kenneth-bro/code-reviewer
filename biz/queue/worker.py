@@ -16,6 +16,7 @@ from biz.platforms.github.webhook_handler import (
     PushHandler as GithubPushHandler,
 )
 from biz.model.diff import Diff
+from biz.model.review_comment import ReviewResult
 from biz.model.review_context import ReviewContext
 from biz.service.review_service import ReviewService
 from biz.utils.code_reviewer import CodeReviewer
@@ -79,14 +80,50 @@ def _review_changes(
     project_context: dict | None = None,
     review_context: ReviewContext | None = None,
     input_warnings: list[str] | None = None,
-) -> tuple[str, int | None]:
+) -> tuple[str, int | None, ReviewResult]:
     review_result = CodeReviewer(project_context).review_diffs(
         changes,
         _build_commits_text(commits),
         review_context,
         input_warnings=input_warnings,
     )
-    return render_review_markdown(review_result), review_result.score
+    return render_review_markdown(review_result), review_result.score, review_result
+
+
+def _should_auto_merge(review_result: ReviewResult, target_branch: str) -> bool:
+    if os.environ.get("GITLAB_AUTO_MERGE_ENABLED", "0") != "1":
+        return False
+    try:
+        min_score = int(os.environ.get("GITLAB_AUTO_MERGE_MIN_SCORE", "90"))
+    except ValueError:
+        logger.error("GITLAB_AUTO_MERGE_MIN_SCORE must be an integer.")
+        return False
+    allowed_risks = {
+        value.strip().lower()
+        for value in os.environ.get(
+            "GITLAB_AUTO_MERGE_ALLOWED_RISK_LEVELS", "low,低"
+        ).split(",")
+        if value.strip()
+    }
+    allowed_advices = {
+        value.strip().lower()
+        for value in os.environ.get(
+            "GITLAB_AUTO_MERGE_ALLOWED_ADVICES", "approved,建议合并"
+        ).split(",")
+        if value.strip()
+    }
+    target_branches = {
+        value.strip()
+        for value in os.environ.get("GITLAB_AUTO_MERGE_TARGET_BRANCHES", "main").split(",")
+        if value.strip()
+    }
+    return (
+        review_result.score is not None
+        and review_result.score >= min_score
+        and review_result.risk_level.strip().lower() in allowed_risks
+        and review_result.merge_advice.strip().lower() in allowed_advices
+        and target_branch in target_branches
+    )
 
 
 def handle_push_event(
@@ -123,7 +160,7 @@ def handle_push_event(
                 review_context = _build_context(
                     handler, changes, webhook_data.get("after")
                 )
-                review_result, score = _review_changes(
+                review_result, score, _ = _review_changes(
                     changes,
                     commits,
                     _gitlab_project_context(webhook_data),
@@ -230,7 +267,7 @@ def handle_merge_request_event(
             return
 
         review_context = _build_context(handler, changes, last_commit_id)
-        review_result, score = _review_changes(
+        review_result, score, structured_review = _review_changes(
             changes,
             commits,
             _gitlab_project_context(webhook_data),
@@ -258,6 +295,11 @@ def handle_merge_request_event(
                 last_commit_id=last_commit_id,
             )
         )
+
+        if last_commit_id and _should_auto_merge(
+            structured_review, object_attributes.get("target_branch", "")
+        ):
+            handler.merge_merge_request(last_commit_id)
 
     except Exception as e:
         error_message = (
@@ -301,7 +343,7 @@ def handle_github_push_event(
                 review_context = _build_context(
                     handler, changes, webhook_data.get("after")
                 )
-                review_result, score = _review_changes(
+                review_result, score, _ = _review_changes(
                     changes,
                     commits,
                     _github_project_context(webhook_data),
@@ -390,7 +432,7 @@ def handle_github_pull_request_event(
             return
 
         review_context = _build_context(handler, changes, github_last_commit_id)
-        review_result, score = _review_changes(
+        review_result, score, _ = _review_changes(
             changes,
             commits,
             _github_project_context(webhook_data),
