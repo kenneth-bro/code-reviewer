@@ -255,6 +255,8 @@ cp conf/.env.dist conf/.env
 | `DINGTALK_SECRET` | — | DingTalk HMAC secret |
 | `WECOM_ENABLED` | `0` | Enable WeCom notifications |
 | `WECOM_WEBHOOK_URL` | — | WeCom robot webhook URL |
+| `WECOM_MENTION_AUTHOR_ENABLED` | `0` | Mention the GitLab author in a follow-up WeCom text message |
+| `GITLAB_MOBILE_ATTRIBUTE_KEY` | `手机号码` | GitLab user custom attribute containing the WeCom-bound mobile number |
 | `FEISHU_ENABLED` | `0` | Enable Feishu bot notifications |
 | `FEISHU_WEBHOOK_URL` | — | Feishu bot webhook URL |
 | `EXTRA_WEBHOOK_ENABLED` | `0` | Enable custom webhook (e.g. feishu-relay) |

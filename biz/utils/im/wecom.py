@@ -1,3 +1,4 @@
+import copy
 import json
 import requests
 import os
@@ -80,6 +81,7 @@ class WeComNotifier:
         is_at_all=False,
         project_name=None,
         url_slug=None,
+        mentioned_mobiles=None,
     ):
         """
         Send WeCom message
@@ -110,7 +112,9 @@ class WeComNotifier:
 
             if content_length <= MAX_CONTENT_BYTES:
                 # Within limit, send directly
-                data = self._build_message(content, title, msg_type, is_at_all)
+                data = self._build_message(
+                    content, title, msg_type, is_at_all, mentioned_mobiles
+                )
                 self._send_message(post_url, data)
             else:
                 # Exceeds limit, split and send
@@ -118,14 +122,27 @@ class WeComNotifier:
                     f"Message content exceeds {MAX_CONTENT_BYTES} byte limit, will split and send. Total length: {content_length} bytes"
                 )
                 self._send_message_in_chunks(
-                    content, title, post_url, msg_type, is_at_all, MAX_CONTENT_BYTES
+                    content,
+                    title,
+                    post_url,
+                    msg_type,
+                    is_at_all,
+                    mentioned_mobiles,
+                    MAX_CONTENT_BYTES,
                 )
 
         except Exception as e:
             logger.error(f"WeCom message sending failed! {e}")
 
     def _send_message_in_chunks(
-        self, content, title, post_url, msg_type, is_at_all, max_bytes
+        self,
+        content,
+        title,
+        post_url,
+        msg_type,
+        is_at_all,
+        mentioned_mobiles,
+        max_bytes,
     ):
         """
         Split content into multiple parts and send separately
@@ -137,7 +154,9 @@ class WeComNotifier:
                 if title
                 else f"Message (Part {i + 1}/{len(chunks)})"
             )
-            data = self._build_message(chunk, chunk_title, msg_type, is_at_all)
+            data = self._build_message(
+                chunk, chunk_title, msg_type, is_at_all, mentioned_mobiles
+            )
             self._send_message(
                 post_url, data, chunk_num=i + 1, total_chunks=len(chunks)
             )
@@ -179,18 +198,25 @@ class WeComNotifier:
     def _send_message(self, post_url, data, chunk_num=None, total_chunks=None):
         """Send request and return response"""
         try:
+            log_data = copy.deepcopy(data)
+            if log_data.get("text", {}).get("mentioned_mobile_list"):
+                log_data["text"]["mentioned_mobile_list"] = ["<redacted>"]
             logger.debug(
-                f"Sending WeCom message{' chunk' if chunk_num else ''} {chunk_num}/{total_chunks if chunk_num else ''}: url={post_url}, data={data}"
+                "Sending WeCom message%s %s/%s: url=<redacted>, data=%s",
+                " chunk" if chunk_num else "",
+                chunk_num or "",
+                total_chunks or "",
+                log_data,
             )
             response = self._send_request(post_url, data)
 
             if response and response.get("errcode") != 0:
                 logger.error(
-                    f"WeCom message sending failed! webhook_url:{post_url}, errmsg:{response}"
+                    f"WeCom message sending failed! webhook_url:<redacted>, errmsg:{response}"
                 )
             else:
                 logger.info(
-                    f"WeCom message{' chunk' if chunk_num else ''} sent successfully! webhook_url:{post_url}"
+                    f"WeCom message{' chunk' if chunk_num else ''} sent successfully! webhook_url:<redacted>"
                 )
 
         except Exception as e:
@@ -208,27 +234,32 @@ class WeComNotifier:
             response.raise_for_status()  # Raise on HTTP error
             return response.json()
         except requests.RequestException as e:
-            logger.error(f"WeCom message send request failed! url:{url}, error: {e}")
+            logger.error(f"WeCom message send request failed! url:<redacted>, error: {e}")
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse WeCom response JSON! url:{url}, error: {e}")
+            logger.error(f"Failed to parse WeCom response JSON! url:<redacted>, error: {e}")
         return None
 
-    def _build_message(self, content, title, msg_type, is_at_all):
+    def _build_message(
+        self, content, title, msg_type, is_at_all, mentioned_mobiles=None
+    ):
         """Build message"""
         if msg_type == "text":
-            return self._build_text_message(content, is_at_all)
+            return self._build_text_message(
+                content, is_at_all, mentioned_mobiles
+            )
         elif msg_type == "markdown":
             return self._build_markdown_message(content, title)
         else:
             raise ValueError(f"Unsupported message type: {msg_type}")
 
-    def _build_text_message(self, content, is_at_all):
+    def _build_text_message(self, content, is_at_all, mentioned_mobiles=None):
         """Build text message"""
         return {
             "msgtype": "text",
             "text": {
                 "content": content,
                 "mentioned_list": ["@all"] if is_at_all else [],
+                "mentioned_mobile_list": mentioned_mobiles or [],
             },
         }
 
