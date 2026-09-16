@@ -277,6 +277,16 @@ def handle_merge_request_event(
 
         handler.add_merge_request_notes(f"Auto Review Result: \n{review_result}")
 
+        auto_merged = False
+        if last_commit_id and _should_auto_merge(
+            structured_review, object_attributes.get("target_branch", "")
+        ):
+            try:
+                handler.merge_merge_request(last_commit_id)
+                auto_merged = True
+            except Exception as e:
+                logger.error("GitLab auto-merge failed: %s", e)
+
         event_manager["merge_request_reviewed"].send(
             MergeRequestReviewEntity(
                 project_name=webhook_data["project"]["name"],
@@ -293,13 +303,9 @@ def handle_merge_request_event(
                 additions=additions,
                 deletions=deletions,
                 last_commit_id=last_commit_id,
+                auto_merged=auto_merged,
             )
         )
-
-        if last_commit_id and _should_auto_merge(
-            structured_review, object_attributes.get("target_branch", "")
-        ):
-            handler.merge_merge_request(last_commit_id)
 
     except Exception as e:
         error_message = (

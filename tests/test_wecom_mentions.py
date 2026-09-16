@@ -43,7 +43,7 @@ class WeComMentionTest(unittest.TestCase):
     @patch("biz.utils.im.notifier.WeComNotifier")
     @patch("biz.utils.im.notifier.DingTalkNotifier")
     @patch.dict(os.environ, {"WECOM_MENTION_AUTHOR_ENABLED": "1"}, clear=True)
-    def test_sends_follow_up_text_mention_for_gitlab_author(
+    def test_mentions_gitlab_author_in_primary_text_message(
         self, dingtalk, wecom, feishu, extra, mobile_lookup
     ):
         wecom.return_value.enabled = True
@@ -54,17 +54,16 @@ class WeComMentionTest(unittest.TestCase):
         }
 
         notifier.send_notification(
-            content="评审报告",
-            title="代码评审",
+            content="合并请求未自动合并，请查看修改意见",
+            msg_type="text",
             project_name="Ai Reviewer",
             webhook_data=webhook_data,
         )
 
-        self.assertEqual(wecom.return_value.send_message.call_count, 2)
-        mention_call = wecom.return_value.send_message.call_args_list[1]
+        self.assertEqual(wecom.return_value.send_message.call_count, 1)
+        mention_call = wecom.return_value.send_message.call_args
         self.assertEqual(mention_call.kwargs["msg_type"], "text")
         self.assertEqual(mention_call.kwargs["mentioned_mobiles"], ["18500004960"])
-        self.assertIn("liq", mention_call.kwargs["content"])
         mobile_lookup.assert_called_once_with(webhook_data)
 
     def test_wecom_text_payload_contains_mobile_mentions(self):

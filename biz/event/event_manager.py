@@ -19,16 +19,12 @@ def _format_time(timestamp: int) -> str:
 
 
 def _build_merge_request_message(entity: MergeRequestReviewEntity) -> str:
-    return f"""
-> 提交人：{entity.author}　`{entity.source_branch}` → `{entity.target_branch}`
-
-- **评审时间**：{_format_time(entity.updated_at)}
-- **提交说明**：{entity.commit_messages}
-- **代码变更**：新增 {entity.additions} 行，删除 {entity.deletions} 行
-- [查看合并请求]({entity.url})
-
-{entity.review_result}
-    """.strip()
+    if entity.auto_merged:
+        return f"{entity.project_name}：合并请求已自动合并。\n{entity.url}"
+    return (
+        f"{entity.project_name}：合并请求未自动合并，请查看修改意见：\n"
+        f"{entity.url}"
+    )
 
 
 def _build_push_message(entity: PushReviewEntity) -> str:
@@ -59,8 +55,7 @@ def _build_push_message(entity: PushReviewEntity) -> str:
 def on_merge_request_reviewed(mr_review_entity: MergeRequestReviewEntity):
     notifier.send_notification(
         content=_build_merge_request_message(mr_review_entity),
-        msg_type="markdown",
-        title=f"🔀 {mr_review_entity.project_name}｜合并请求评审",
+        msg_type="text",
         project_name=mr_review_entity.project_name,
         url_slug=mr_review_entity.url_slug,
         webhook_data=mr_review_entity.webhook_data,

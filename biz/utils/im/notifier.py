@@ -83,6 +83,12 @@ def send_notification(
     )
 
     wecom_notifier = WeComNotifier()
+    mobile = None
+    if (
+        wecom_notifier.enabled
+        and os.getenv("WECOM_MENTION_AUTHOR_ENABLED", "0") == "1"
+    ):
+        mobile = _gitlab_author_mobile(webhook_data)
     wecom_notifier.send_message(
         content=content,
         msg_type=msg_type,
@@ -90,26 +96,22 @@ def send_notification(
         is_at_all=is_at_all,
         project_name=project_name,
         url_slug=url_slug,
+        mentioned_mobiles=[mobile] if mobile and msg_type == "text" else None,
     )
-    if (
-        wecom_notifier.enabled
-        and os.getenv("WECOM_MENTION_AUTHOR_ENABLED", "0") == "1"
-    ):
-        mobile = _gitlab_author_mobile(webhook_data)
-        if mobile:
-            user = (webhook_data or {}).get("user") or {}
-            username = (
-                user.get("username")
-                if user.get("id") == _gitlab_author_id(webhook_data)
-                else None
-            ) or "MR 作者"
-            wecom_notifier.send_message(
-                content=f"请 {username} 关注以上代码评审结果。",
-                msg_type="text",
-                project_name=project_name,
-                url_slug=url_slug,
-                mentioned_mobiles=[mobile],
-            )
+    if mobile and msg_type != "text":
+        user = (webhook_data or {}).get("user") or {}
+        username = (
+            user.get("username")
+            if user.get("id") == _gitlab_author_id(webhook_data)
+            else None
+        ) or "MR 作者"
+        wecom_notifier.send_message(
+            content=f"请 {username} 关注以上代码评审结果。",
+            msg_type="text",
+            project_name=project_name,
+            url_slug=url_slug,
+            mentioned_mobiles=[mobile],
+        )
 
     feishu_notifier = FeishuNotifier()
     feishu_notifier.send_message(

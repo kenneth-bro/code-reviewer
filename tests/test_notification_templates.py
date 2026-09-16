@@ -5,8 +5,8 @@ from biz.event.event_manager import _build_merge_request_message, _build_push_me
 
 
 class NotificationTemplateTest(unittest.TestCase):
-    def test_merge_request_template_is_concise_chinese_and_complete(self):
-        entity = MergeRequestReviewEntity(
+    def test_merge_request_template_reports_merge_outcome_and_link(self):
+        values = dict(
             project_name="示例项目",
             author="张三",
             source_branch="feature/demo",
@@ -23,18 +23,22 @@ class NotificationTemplateTest(unittest.TestCase):
             last_commit_id="abc123",
         )
 
-        message = _build_merge_request_message(entity)
+        merged = _build_merge_request_message(
+            MergeRequestReviewEntity(**values, auto_merged=True)
+        )
+        unmerged = _build_merge_request_message(
+            MergeRequestReviewEntity(**values, auto_merged=False)
+        )
 
-        for expected in (
-            "提交人：张三",
-            "`feature/demo` → `main`",
-            "**提交说明**：新增功能",
-            "**代码变更**：新增 12 行，删除 3 行",
+        self.assertEqual(
+            merged,
+            "示例项目：合并请求已自动合并。\nhttps://gitlab.example.com/mr/1",
+        )
+        self.assertEqual(
+            unmerged,
+            "示例项目：合并请求未自动合并，请查看修改意见：\n"
             "https://gitlab.example.com/mr/1",
-            "综合评分：95",
-        ):
-            self.assertIn(expected, message)
-        self.assertNotIn("Merge Request Info", message)
+        )
 
     def test_push_template_is_concise_chinese_and_complete(self):
         entity = PushReviewEntity(
