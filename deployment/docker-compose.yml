@@ -6,7 +6,7 @@ services:
     image: code-reviewer:latest
     container_name: code-reviewer
     ports:
-      - "25001:5001"
+      - "8787:5001"
     volumes:
       - ../data:/app/data
       - ../log:/app/log
