@@ -16,6 +16,7 @@ class MergeRequestReviewEntity:
         deletions: int,
         last_commit_id: str,
         auto_merged: bool = False,
+        review_summary: str = "",
     ):
         self.project_name = project_name
         self.author = author
@@ -32,6 +33,7 @@ class MergeRequestReviewEntity:
         self.deletions = deletions
         self.last_commit_id = last_commit_id
         self.auto_merged = auto_merged
+        self.review_summary = review_summary
 
     @property
     def commit_messages(self):

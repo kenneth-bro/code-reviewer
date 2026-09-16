@@ -21,10 +21,11 @@ def _format_time(timestamp: int) -> str:
 def _build_merge_request_message(entity: MergeRequestReviewEntity) -> str:
     if entity.auto_merged:
         return f"{entity.project_name}：合并请求已自动合并。\n{entity.url}"
-    return (
-        f"{entity.project_name}：合并请求未自动合并，请查看修改意见：\n"
-        f"{entity.url}"
-    )
+    lines = [f"{entity.project_name}：合并请求未自动合并。"]
+    if entity.review_summary:
+        lines.append(f"摘要：{entity.review_summary}")
+    lines.append(f"查看具体修改意见：{entity.url}")
+    return "\n".join(lines)
 
 
 def _build_push_message(entity: PushReviewEntity) -> str:

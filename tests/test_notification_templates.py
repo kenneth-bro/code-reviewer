@@ -21,6 +21,7 @@ class NotificationTemplateTest(unittest.TestCase):
             additions=12,
             deletions=3,
             last_commit_id="abc123",
+            review_summary="存在 SQL 注入风险，修复前不建议合并。",
         )
 
         merged = _build_merge_request_message(
@@ -36,8 +37,9 @@ class NotificationTemplateTest(unittest.TestCase):
         )
         self.assertEqual(
             unmerged,
-            "示例项目：合并请求未自动合并，请查看修改意见：\n"
-            "https://gitlab.example.com/mr/1",
+            "示例项目：合并请求未自动合并。\n"
+            "摘要：存在 SQL 注入风险，修复前不建议合并。\n"
+            "查看具体修改意见：https://gitlab.example.com/mr/1",
         )
 
     def test_push_template_is_concise_chinese_and_complete(self):

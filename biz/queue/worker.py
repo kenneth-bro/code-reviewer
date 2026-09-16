@@ -304,6 +304,7 @@ def handle_merge_request_event(
                 deletions=deletions,
                 last_commit_id=last_commit_id,
                 auto_merged=auto_merged,
+                review_summary=structured_review.summary,
             )
         )
 
@@ -438,7 +439,7 @@ def handle_github_pull_request_event(
             return
 
         review_context = _build_context(handler, changes, github_last_commit_id)
-        review_result, score, _ = _review_changes(
+        review_result, score, structured_review = _review_changes(
             changes,
             commits,
             _github_project_context(webhook_data),
@@ -464,6 +465,7 @@ def handle_github_pull_request_event(
                 additions=additions,
                 deletions=deletions,
                 last_commit_id=github_last_commit_id,
+                review_summary=structured_review.summary,
             )
         )
 
