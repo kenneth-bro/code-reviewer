@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from blinker import Signal
 
 from biz.entity.review_entity import MergeRequestReviewEntity, PushReviewEntity
@@ -12,36 +14,58 @@ event_manager = {
 }
 
 
+def _format_time(timestamp: int) -> str:
+    return datetime.fromtimestamp(timestamp).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _build_merge_request_message(entity: MergeRequestReviewEntity) -> str:
+    return f"""
+> 提交人：{entity.author}　`{entity.source_branch}` → `{entity.target_branch}`
+
+- **评审时间**：{_format_time(entity.updated_at)}
+- **提交说明**：{entity.commit_messages}
+- **代码变更**：新增 {entity.additions} 行，删除 {entity.deletions} 行
+- [查看合并请求]({entity.url})
+
+{entity.review_result}
+    """.strip()
+
+
+def _build_push_message(entity: PushReviewEntity) -> str:
+    lines = [
+        f"> 分支：`{entity.branch}`　代码变更：新增 {entity.additions} 行，删除 {entity.deletions} 行",
+        "",
+        "### 提交记录",
+    ]
+    for commit in entity.commits:
+        message = (commit.get("message") or "").strip()
+        author = commit.get("author", "未知提交人")
+        timestamp = commit.get("timestamp", "")
+        url = commit.get("url", "#")
+        lines.extend(
+            [
+                f"- **{message}**",
+                f"  - 提交人：{author}",
+                f"  - 时间：{timestamp}",
+                f"  - [查看提交]({url})",
+            ]
+        )
+    if entity.review_result:
+        lines.extend(["", entity.review_result])
+    return "\n".join(lines)
+
+
 # Define event handler
 def on_merge_request_reviewed(mr_review_entity: MergeRequestReviewEntity):
-    # Send IM notification
-    im_msg = f"""
-### 🔀 {mr_review_entity.project_name}: Merge Request
-
-#### Merge Request Info:
-- **Author:** {mr_review_entity.author}
-
-- **Source Branch**: {mr_review_entity.source_branch}
-- **Target Branch**: {mr_review_entity.target_branch}
-- **Updated**: {mr_review_entity.updated_at}
-- **Commit Message:** {mr_review_entity.commit_messages}
-
-- [View MR Details]({mr_review_entity.url})
-
-- **AI Review Result:** 
-
-{mr_review_entity.review_result}
-    """
     notifier.send_notification(
-        content=im_msg,
+        content=_build_merge_request_message(mr_review_entity),
         msg_type="markdown",
-        title="Merge Request Review",
+        title=f"🔀 {mr_review_entity.project_name}｜合并请求评审",
         project_name=mr_review_entity.project_name,
         url_slug=mr_review_entity.url_slug,
         webhook_data=mr_review_entity.webhook_data,
     )
 
-    # Save to database
     if not ReviewService().insert_mr_review_log(mr_review_entity):
         logger.error(
             "Failed to persist merge request review log: project=%s source=%s target=%s",
@@ -52,34 +76,15 @@ def on_merge_request_reviewed(mr_review_entity: MergeRequestReviewEntity):
 
 
 def on_push_reviewed(entity: PushReviewEntity):
-    # Send IM notification
-    im_msg = f"### 🚀 {entity.project_name}: Push\n\n"
-    im_msg += "#### Commits:\n"
-
-    for commit in entity.commits:
-        message = commit.get("message", "").strip()
-        author = commit.get("author", "Unknown Author")
-        timestamp = commit.get("timestamp", "")
-        url = commit.get("url", "#")
-        im_msg += (
-            f"- **Commit Message**: {message}\n"
-            f"- **Author**: {author}\n"
-            f"- **Time**: {timestamp}\n"
-            f"- [View Commit]({url})\n\n"
-        )
-
-    if entity.review_result:
-        im_msg += f"#### AI Review Result: \n {entity.review_result}\n\n"
     notifier.send_notification(
-        content=im_msg,
+        content=_build_push_message(entity),
         msg_type="markdown",
-        title=f"{entity.project_name} Push Event",
+        title=f"🚀 {entity.project_name}｜推送评审",
         project_name=entity.project_name,
         url_slug=entity.url_slug,
         webhook_data=entity.webhook_data,
     )
 
-    # Save to database
     if not ReviewService().insert_push_review_log(entity):
         logger.error(
             "Failed to persist push review log: project=%s branch=%s",

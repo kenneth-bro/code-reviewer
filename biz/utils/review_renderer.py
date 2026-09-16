@@ -1,6 +1,22 @@
 from biz.model.review_comment import ReviewComment, ReviewResult
 
 
+SEVERITY_LABELS = {
+    "high": "高",
+    "medium": "中",
+    "low": "低",
+    "info": "提示",
+}
+CATEGORY_LABELS = {
+    "correctness": "正确性",
+    "compatibility": "兼容性",
+    "security": "安全",
+    "performance": "性能",
+    "maintainability": "可维护性",
+    "test": "测试",
+}
+
+
 def _format_score(score: int | None) -> str:
     return f"{score}" if score is not None else "N/A"
 
@@ -13,15 +29,19 @@ def _format_comment(comment: ReviewComment, index: int) -> str:
         else:
             location = f"{location}:{comment.start_line}-{comment.end_line}"
     else:
-        location = f"{location}:unresolved"
+        location = f"{location}:未定位"
 
+    severity = SEVERITY_LABELS.get(comment.severity, comment.severity)
+    category = CATEGORY_LABELS.get(
+        comment.category, comment.category or "未分类"
+    )
     parts = [
-        f"{index}. **{comment.severity}** `{location}`",
-        f"   - Category: {comment.category or 'uncategorized'}",
-        f"   - Issue: {comment.content}",
+        f"{index}. **{severity}** `{location}`",
+        f"   - 类型：{category}",
+        f"   - 问题：{comment.content}",
     ]
     if not comment.line_resolved and comment.resolve_reason:
-        parts.append(f"   - Resolution: {comment.resolve_reason}")
+        parts.append(f"   - 定位说明：{comment.resolve_reason}")
     return "\n".join(parts)
 
 
@@ -35,26 +55,15 @@ def _render_parse_error(result: ReviewResult) -> str:
         return result.raw_text
     return "\n".join(
         [
-            "## Review Conclusion",
-            "- Risk Level: Low",
-            "- Merge Advice: Approved",
-            "- Total Score: N/A",
+            "## 评审结论",
+            "- 风险等级：低",
+            "- 合并建议：建议合并",
+            "- 综合评分：N/A",
             "",
-            "The model returned an unparseable structured review result. "
-            "It has been downgraded to standard Markdown output. "
-            "The original content was not published directly to avoid comment formatting issues.",
+            "模型返回的结构化结果无法解析，已转换为标准格式；原始内容未直接发布，避免影响消息展示。",
             "",
-            "## Key Issues",
-            "Unable to parse structured issue list. Check service logs for the raw model response.",
-            "",
-            "## Logic & Compatibility Check",
-            "Unable to parse structured results.",
-            "",
-            "## Performance & Stability Check",
-            "Unable to parse structured results.",
-            "",
-            "## Score Breakdown",
-            "Total Score: N/A",
+            "## 主要问题",
+            "无法解析结构化问题列表，请检查服务日志中的原始模型响应。",
         ]
     )
 
@@ -64,38 +73,24 @@ def render_review_markdown(result: ReviewResult) -> str:
         return _render_parse_error(result)
 
     lines = [
-        "## Review Conclusion",
-        f"- Risk Level: {result.risk_level or 'Low'}",
-        f"- Merge Advice: {result.merge_advice or 'Approved'}",
-        f"- Total Score: {_format_score(result.score)}",
+        "## 评审结论",
+        f"- 风险等级：{result.risk_level or '低'}",
+        f"- 合并建议：{result.merge_advice or '建议合并'}",
+        f"- 综合评分：{_format_score(result.score)}",
         "",
-        result.summary or "No specific issues found.",
+        result.summary or "未发现明确问题。",
         "",
     ]
     if result.input_warnings:
-        lines.append("## Input Completeness")
+        lines.append("## 输入完整性")
         lines.extend(f"- {warning}" for warning in result.input_warnings)
         lines.append("")
 
-    lines.append("## Key Issues")
-
+    lines.append("## 主要问题")
     if result.comments:
         for index, comment in enumerate(result.comments, start=1):
             lines.append(_format_comment(comment, index))
     else:
-        lines.append("No specific issues found.")
+        lines.append("未发现明确问题。")
 
-    lines.extend(
-        [
-            "",
-            "## Logic & Compatibility Check",
-            result.summary or "No specific risks found.",
-            "",
-            "## Performance & Stability Check",
-            "No specific risks found.",
-            "",
-            "## Score Breakdown",
-            f"Total Score: {_format_score(result.score)}",
-        ]
-    )
     return "\n".join(lines).strip()

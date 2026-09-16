@@ -174,7 +174,7 @@ trailing text { "ignored": true }
 
         markdown = render_review_markdown(result)
 
-        self.assertIn("Total Score: 92", markdown)
+        self.assertIn("综合评分：92", markdown)
         self.assertIn("`app.py:12`", markdown)
 
     def test_renderer_does_not_publish_raw_json_when_parse_fails(self):
@@ -186,8 +186,8 @@ trailing text { "ignored": true }
 
         markdown = render_review_markdown(result)
 
-        self.assertIn("## Review Conclusion", markdown)
-        self.assertIn("Unable to parse structured issue list", markdown)
+        self.assertIn("## 评审结论", markdown)
+        self.assertIn("无法解析结构化问题列表", markdown)
         self.assertNotEqual(markdown, result.raw_text)
 
     def test_renderer_does_not_publish_malformed_json_with_trailing_text(self):
@@ -197,8 +197,8 @@ trailing text { "ignored": true }
         markdown = render_review_markdown(result)
 
         self.assertTrue(result.parse_error)
-        self.assertIn("## Review Conclusion", markdown)
-        self.assertIn("Unable to parse structured issue list", markdown)
+        self.assertIn("## 评审结论", markdown)
+        self.assertIn("无法解析结构化问题列表", markdown)
         self.assertNotEqual(markdown, raw_text)
 
     def test_high_comment_without_diff_evidence_is_downgraded(self):
@@ -232,7 +232,7 @@ trailing text { "ignored": true }
 
         markdown = render_review_markdown(result)
 
-        self.assertIn("## Input Completeness", markdown)
+        self.assertIn("## 输入完整性", markdown)
         self.assertIn("Diff truncated due to token budget limit.", markdown)
 
 
