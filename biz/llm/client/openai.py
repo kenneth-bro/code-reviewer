@@ -18,6 +18,7 @@ class OpenAIClient(BaseClient):
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.default_model = os.getenv("OPENAI_API_MODEL", "gpt-4o-mini")
+        self.reasoning_effort = os.getenv("OPENAI_REASONING_EFFORT")
 
     def completions(
         self,
@@ -25,8 +26,8 @@ class OpenAIClient(BaseClient):
         model: Optional[str] | NotGiven = NOT_GIVEN,
     ) -> str:
         model = model or self.default_model
-        completion = self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-        )
+        kwargs = {"model": model, "messages": messages}
+        if self.reasoning_effort:
+            kwargs["reasoning_effort"] = self.reasoning_effort
+        completion = self.client.chat.completions.create(**kwargs)
         return completion.choices[0].message.content
