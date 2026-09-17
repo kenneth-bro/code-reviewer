@@ -215,8 +215,9 @@ cp conf/.env.dist conf/.env
 | `GITLAB_AUTO_MERGE_MIN_SCORE` | `90` | Minimum AI review score required for auto merge |
 | `GITLAB_AUTO_MERGE_ALLOWED_RISK_LEVELS` | `low,低` | Comma-separated risk levels allowed to auto merge |
 | `GITLAB_AUTO_MERGE_ALLOWED_ADVICES` | `approved,建议合并` | Comma-separated merge advice values allowed to auto merge |
-| `GITLAB_AUTO_MERGE_TARGET_BRANCHES` | `main` | Comma-separated target branches allowed to auto merge |
 | `HTTP_TIMEOUT_SECONDS` | `10` | HTTP request timeout |
+
+Auto merge is permitted only for `feat/*` or `fix/*` into `dev`, `hotfix/*` into `main`, and `dev` into `main`. Invalid branch names or merge directions are rejected with the branch guide link.
 
 ### Context Window
 

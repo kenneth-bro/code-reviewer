@@ -1,9 +1,10 @@
 import os
+import re
 import traceback
 from datetime import datetime
 
 from biz.entity.review_entity import MergeRequestReviewEntity, PushReviewEntity
-from biz.event.event_manager import event_manager
+from biz.event.event_manager import _build_branch_rejection_message, event_manager
 from biz.context.window import build_review_context
 from biz.diff.filter import DiffFilterResult, filter_diffs_with_stats
 from biz.diff.parser import parse_changes
@@ -90,7 +91,32 @@ def _review_changes(
     return render_review_markdown(review_result), review_result.score, review_result
 
 
-def _should_auto_merge(review_result: ReviewResult, target_branch: str) -> bool:
+BRANCH_GUIDE_URL = "https://developer-docs.jrtzcloud.cn/rd-quality/git/git-branch.html"
+BRANCH_NAME_PATTERN = re.compile(
+    r"^(?:main|dev|(?:feat|fix|hotfix|dev|main|delay)/[^/\s]+(?:/[^/\s]+)*)$"
+)
+
+
+def _merge_route_error(source_branch: str, target_branch: str) -> str | None:
+    if not BRANCH_NAME_PATTERN.fullmatch(source_branch):
+        return f"源分支名不符合规范：{source_branch}"
+    if not BRANCH_NAME_PATTERN.fullmatch(target_branch):
+        return f"目标分支名不符合规范：{target_branch}"
+
+    valid_route = (
+        (source_branch.startswith(("feat/", "fix/")) and target_branch == "dev")
+        or (source_branch.startswith("hotfix/") and target_branch == "main")
+        or (source_branch == "dev" and target_branch == "main")
+    )
+    if not valid_route:
+        return (
+            f"不允许的合并方向：{source_branch} → {target_branch}；"
+            "允许 feat/*、fix/* → dev，hotfix/* → main，dev → main"
+        )
+    return None
+
+
+def _should_auto_merge(review_result: ReviewResult) -> bool:
     if os.environ.get("GITLAB_AUTO_MERGE_ENABLED", "0") != "1":
         return False
     try:
@@ -112,17 +138,11 @@ def _should_auto_merge(review_result: ReviewResult, target_branch: str) -> bool:
         ).split(",")
         if value.strip()
     }
-    target_branches = {
-        value.strip()
-        for value in os.environ.get("GITLAB_AUTO_MERGE_TARGET_BRANCHES", "main").split(",")
-        if value.strip()
-    }
     return (
         review_result.score is not None
         and review_result.score >= min_score
         and review_result.risk_level.strip().lower() in allowed_risks
         and review_result.merge_advice.strip().lower() in allowed_advices
-        and target_branch in target_branches
     )
 
 
@@ -222,6 +242,39 @@ def handle_merge_request_event(
             logger.info("MR is draft, sending notification only, skipping AI review.")
             return
 
+        if handler.action not in ["open", "update"]:
+            logger.info(f"Merge Request Hook event, action={handler.action}, ignored.")
+            return
+
+        project_name = webhook_data["project"]["name"]
+        author = webhook_data["user"]["username"]
+        source_branch = object_attributes.get("source_branch", "")
+        target_branch = object_attributes.get("target_branch", "")
+        route_error = _merge_route_error(source_branch, target_branch)
+        if route_error:
+            note = (
+                "Auto Review Result: \n## 合并请求已驳回\n"
+                f"{route_error}\n\n分支规范：{BRANCH_GUIDE_URL}"
+            )
+            handler.add_merge_request_notes(note)
+            notifier.send_notification(
+                content=_build_branch_rejection_message(
+                    project_name,
+                    author,
+                    source_branch,
+                    target_branch,
+                    object_attributes.get("url", ""),
+                    route_error,
+                    BRANCH_GUIDE_URL,
+                ),
+                msg_type="text",
+                project_name=project_name,
+                url_slug=gitlab_url_slug,
+                webhook_data=webhook_data,
+            )
+            logger.info("Merge Request rejected by branch policy: %s", route_error)
+            return
+
         if (
             merge_review_only_protected_branches
             and not handler.target_branch_protected()
@@ -231,16 +284,8 @@ def handle_merge_request_event(
             )
             return
 
-        if handler.action not in ["open", "update"]:
-            logger.info(f"Merge Request Hook event, action={handler.action}, ignored.")
-            return
-
         last_commit_id = object_attributes.get("last_commit", {}).get("id", "")
         if last_commit_id:
-            project_name = webhook_data["project"]["name"]
-            source_branch = object_attributes.get("source_branch", "")
-            target_branch = object_attributes.get("target_branch", "")
-
             if ReviewService.check_mr_last_commit_id_exists(
                 project_name, source_branch, target_branch, last_commit_id
             ):
@@ -278,9 +323,7 @@ def handle_merge_request_event(
         handler.add_merge_request_notes(f"Auto Review Result: \n{review_result}")
 
         auto_merged = False
-        if last_commit_id and _should_auto_merge(
-            structured_review, object_attributes.get("target_branch", "")
-        ):
+        if last_commit_id and _should_auto_merge(structured_review):
             try:
                 handler.merge_merge_request(last_commit_id)
                 auto_merged = True

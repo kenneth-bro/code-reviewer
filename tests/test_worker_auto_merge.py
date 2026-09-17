@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from biz.model.review_comment import ReviewResult
 from biz.platforms.gitlab.webhook_handler import MergeRequestHandler
-from biz.queue.worker import _should_auto_merge
+from biz.queue.worker import _merge_route_error, _should_auto_merge
 
 
 class WorkerAutoMergeTest(unittest.TestCase):
@@ -15,7 +15,6 @@ class WorkerAutoMergeTest(unittest.TestCase):
             "GITLAB_AUTO_MERGE_MIN_SCORE": "90",
             "GITLAB_AUTO_MERGE_ALLOWED_RISK_LEVELS": "low,低",
             "GITLAB_AUTO_MERGE_ALLOWED_ADVICES": "approved,建议合并",
-            "GITLAB_AUTO_MERGE_TARGET_BRANCHES": "main",
         },
         clear=True,
     )
@@ -24,29 +23,31 @@ class WorkerAutoMergeTest(unittest.TestCase):
             _should_auto_merge(
                 ReviewResult(
                     summary="ok", score=96, risk_level="低", merge_advice="建议合并"
-                ),
-                "main",
+                )
             )
         )
         self.assertFalse(
             _should_auto_merge(
                 ReviewResult(
                     summary="fix", score=82, risk_level="中", merge_advice="修复后合并"
-                ),
-                "main",
+                )
             )
         )
-        self.assertFalse(
-            _should_auto_merge(
-                ReviewResult(
-                    summary="wrong branch",
-                    score=96,
-                    risk_level="低",
-                    merge_advice="建议合并",
-                ),
-                "develop",
-            )
-        )
+
+    def test_merge_routes_and_branch_names(self):
+        for source, target in (
+            ("feat/login", "dev"),
+            ("fix/login", "dev"),
+            ("hotfix/login", "main"),
+            ("dev", "main"),
+        ):
+            self.assertIsNone(_merge_route_error(source, target))
+
+        self.assertIn("分支名不符合规范", _merge_route_error("feature/login", "dev"))
+        self.assertIn("分支名不符合规范", _merge_route_error("feat/", "dev"))
+        self.assertIn("不允许的合并方向", _merge_route_error("feat/login", "main"))
+        self.assertIn("不允许的合并方向", _merge_route_error("hotfix/login", "dev"))
+        self.assertIn("不允许的合并方向", _merge_route_error("dev", "dev"))
 
     @patch("biz.platforms.gitlab.webhook_handler.requests.put")
     def test_merge_request_uses_reviewed_sha(self, put):

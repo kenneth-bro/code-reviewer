@@ -1,7 +1,11 @@
 import unittest
 
 from biz.entity.review_entity import MergeRequestReviewEntity, PushReviewEntity
-from biz.event.event_manager import _build_merge_request_message, _build_push_message
+from biz.event.event_manager import (
+    _build_branch_rejection_message,
+    _build_merge_request_message,
+    _build_push_message,
+)
 
 
 class NotificationTemplateTest(unittest.TestCase):
@@ -9,8 +13,8 @@ class NotificationTemplateTest(unittest.TestCase):
         values = dict(
             project_name="示例项目",
             author="张三",
-            source_branch="feature/demo",
-            target_branch="main",
+            source_branch="feat/demo",
+            target_branch="dev",
             updated_at=1700000000,
             commits=[{"message": "新增功能"}],
             score=95,
@@ -33,14 +37,36 @@ class NotificationTemplateTest(unittest.TestCase):
 
         self.assertEqual(
             merged,
-            "示例项目：合并请求已自动合并。\nhttps://gitlab.example.com/mr/1",
+            "✅ 示例项目｜已自动合并\n"
+            "feat/demo → dev\n"
+            "AI 评审通过，代码已自动合并。\n"
+            "查看 MR：https://gitlab.example.com/mr/1\n"
+            "处理人：@张三",
         )
         self.assertEqual(
             unmerged,
-            "示例项目：合并请求未自动合并。\n"
+            "⚠️ 示例项目｜需要修改\n"
+            "feat/demo → dev\n"
             "摘要：存在 SQL 注入风险，修复前不建议合并。\n"
-            "查看具体修改意见：https://gitlab.example.com/mr/1",
+            "查看具体修改意见：https://gitlab.example.com/mr/1\n"
+            "处理人：@张三",
         )
+
+    def test_branch_rejection_template(self):
+        message = _build_branch_rejection_message(
+            "示例项目",
+            "张三",
+            "feature/demo",
+            "dev",
+            "https://gitlab.example.com/mr/2",
+            "源分支名不符合规范：feature/demo",
+            "https://developer-docs.jrtzcloud.cn/rd-quality/git/git-branch.html",
+        )
+
+        self.assertIn("已驳回自动合并", message)
+        self.assertIn("feature/demo → dev", message)
+        self.assertIn("分支规范：https://developer-docs.jrtzcloud.cn", message)
+        self.assertIn("处理人：@张三", message)
 
     def test_push_template_is_concise_chinese_and_complete(self):
         entity = PushReviewEntity(

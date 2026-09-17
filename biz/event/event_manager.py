@@ -19,13 +19,42 @@ def _format_time(timestamp: int) -> str:
 
 
 def _build_merge_request_message(entity: MergeRequestReviewEntity) -> str:
+    route = f"{entity.source_branch} → {entity.target_branch}"
     if entity.auto_merged:
-        return f"{entity.project_name}：合并请求已自动合并。\n{entity.url}"
-    lines = [f"{entity.project_name}：合并请求未自动合并。"]
-    if entity.review_summary:
-        lines.append(f"摘要：{entity.review_summary}")
-    lines.append(f"查看具体修改意见：{entity.url}")
+        lines = [
+            f"✅ {entity.project_name}｜已自动合并",
+            route,
+            "AI 评审通过，代码已自动合并。",
+            f"查看 MR：{entity.url}",
+        ]
+    else:
+        lines = [f"⚠️ {entity.project_name}｜需要修改", route]
+        if entity.review_summary:
+            lines.append(f"摘要：{entity.review_summary}")
+        lines.append(f"查看具体修改意见：{entity.url}")
+    lines.append(f"处理人：@{entity.author}")
     return "\n".join(lines)
+
+
+def _build_branch_rejection_message(
+    project_name: str,
+    author: str,
+    source_branch: str,
+    target_branch: str,
+    url: str,
+    reason: str,
+    guide_url: str,
+) -> str:
+    return "\n".join(
+        [
+            f"⛔ {project_name}｜已驳回自动合并",
+            f"{source_branch} → {target_branch}",
+            f"原因：{reason}",
+            f"分支规范：{guide_url}",
+            f"查看 MR：{url}",
+            f"处理人：@{author}",
+        ]
+    )
 
 
 def _build_push_message(entity: PushReviewEntity) -> str:
