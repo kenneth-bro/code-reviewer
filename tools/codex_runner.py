@@ -36,6 +36,7 @@ def command(workdir: Path, model: str | None) -> list[str]:
         "--sandbox",
         "read-only",
         "--ephemeral",
+        "--ignore-user-config",
         "--skip-git-repo-check",
     ]
     selected_model = model or os.getenv("CODEX_RUNNER_MODEL", "").strip()
