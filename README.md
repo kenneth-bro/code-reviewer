@@ -335,7 +335,9 @@ prompt_routing:
     code-reviewer: code_review_prompt_generic
 ```
 
-Routing hierarchy: **project match** → **group match** → **default**. The engine normalizes URLs, paths, and names to find the best match.
+Routing hierarchy: **project match** → **group match** → **Java file detection** → **default**. The engine normalizes URLs, paths, and names to find the best match.
+
+When a change contains a `.java` file and no project/group route matches, the engine uses `code_review_prompt_java`. Java routing and extensions can be customized in `prompt_routing.java` and `prompt_routing.java_extensions`; explicit project/group routes always take precedence. The Java prompt is a project prompt configuration, not a runtime loader for external `SKILL.md` files.
 
 The template file uses Jinja2 for rendering. The `{{ style }}` variable is injected automatically based on the `REVIEW_STYLE` setting.
 

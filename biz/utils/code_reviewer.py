@@ -120,17 +120,19 @@ class CodeReviewer(BaseReviewer):
     """Code Diff level review"""
 
     def __init__(self, project_context: dict | None = None):
+        self.project_context = project_context
         super().__init__(self.resolve_prompt_key(project_context))
 
     @classmethod
-    def resolve_prompt_key(cls, project_context: dict | None = None) -> str:
+    def resolve_prompt_key(
+        cls, project_context: dict | None = None, diffs: list[Diff] | None = None
+    ) -> str:
         """Select code review prompt based on GitLab/GitHub project information"""
         config = cls._load_prompt_config()
         routing = config.get("prompt_routing", {})
         default_prompt = routing.get("default", "code_review_prompt_generic")
-        if not isinstance(project_context, dict) or not project_context:
-            return default_prompt
-
+        if not isinstance(project_context, dict):
+            project_context = {}
         candidates = cls._project_candidates(project_context)
         projects = {
             cls._normalize_route_path(str(k)): v
@@ -149,7 +151,27 @@ class CodeReviewer(BaseReviewer):
             for group, prompt_key in groups.items():
                 if path == group or path.startswith(group + "/"):
                     return prompt_key
+
+        java_extensions = tuple(
+            str(extension).lower()
+            for extension in routing.get("java_extensions", [".java"])
+        )
+        if diffs and any(
+            (diff.path or "").lower().endswith(java_extensions) for diff in diffs
+        ):
+            return routing.get("java", "code_review_prompt_java")
         return default_prompt
+
+    def _select_prompt_for_diffs(self, diffs: list[Diff]) -> None:
+        if not hasattr(self, "prompt_key"):
+            return
+        prompt_key = self.resolve_prompt_key(getattr(self, "project_context", None), diffs)
+        if prompt_key == self.prompt_key:
+            return
+        self.prompt_key = prompt_key
+        self.prompts = self._load_prompts(
+            prompt_key, self._normalize_review_style(os.getenv("REVIEW_STYLE"))
+        )
 
     @staticmethod
     def _normalize_route_path(value: str) -> str:
@@ -574,6 +596,7 @@ class CodeReviewer(BaseReviewer):
         review_context: ReviewContext | None = None,
         input_warnings: list[str] | None = None,
     ) -> ReviewResult:
+        self._select_prompt_for_diffs(diffs)
         review_max_tokens = int(os.getenv("REVIEW_MAX_TOKENS", 10000))
         available_tokens = max(
             review_max_tokens - self._env_int("REVIEW_PROMPT_RESERVED_TOKENS", 1000),

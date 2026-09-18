@@ -61,6 +61,27 @@ class CodeReviewerTest(unittest.TestCase):
 
         self.assertEqual(prompt_key, "code_review_prompt_epvs_default")
 
+    def test_java_diff_uses_java_prompt_when_project_has_no_explicit_route(self):
+        with patch.object(
+            CodeReviewer,
+            "_load_prompt_config",
+            return_value={
+                "prompt_routing": {
+                    "default": "code_review_prompt_generic",
+                    "java": "code_review_prompt_java",
+                    "java_extensions": [".java"],
+                    "projects": {},
+                    "groups": {},
+                }
+            },
+        ):
+            prompt_key = CodeReviewer.resolve_prompt_key(
+                {"name": "order-service"},
+                [Diff(old_path="src/Order.java", new_path="src/Order.java", diff="")],
+            )
+
+        self.assertEqual(prompt_key, "code_review_prompt_java")
+
     def test_project_routing_does_not_match_tail_only(self):
         with patch.object(
             CodeReviewer,
