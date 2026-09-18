@@ -3,6 +3,7 @@ import os
 from biz.llm.client.base import BaseClient
 from biz.llm.client.anthropic import AnthropicClient
 from biz.llm.client.deepseek import DeepSeekClient
+from biz.llm.client.codex_runner import CodexRunnerClient
 from biz.llm.client.ollama_client import OllamaClient
 from biz.llm.client.openai import OpenAIClient
 from biz.llm.client.qwen import QwenClient
@@ -21,6 +22,7 @@ class Factory:
             "deepseek": lambda: DeepSeekClient(),
             "qwen": lambda: QwenClient(),
             "ollama": lambda: OllamaClient(),
+            "codex_runner": lambda: CodexRunnerClient(),
         }
 
         provider_func = chat_model_providers.get(provider)

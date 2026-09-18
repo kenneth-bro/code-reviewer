@@ -176,7 +176,7 @@ cp conf/.env.dist conf/.env
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `LLM_PROVIDER` | LLM backend | `deepseek`, `openai`, `anthropic`, `qwen`, `zhipuai`, `ollama` |
+| `LLM_PROVIDER` | LLM backend | `deepseek`, `openai`, `anthropic`, `qwen`, `zhipuai`, `ollama`, `codex_runner` |
 | `DEEPSEEK_API_KEY` | DeepSeek API key | `sk-...` |
 | `DEEPSEEK_API_BASE_URL` | DeepSeek API endpoint | `https://api.deepseek.com` |
 | `DEEPSEEK_API_MODEL` | DeepSeek model | `deepseek-chat` |
@@ -191,6 +191,8 @@ cp conf/.env.dist conf/.env
 | `ZHIPUAI_API_MODEL` | ZhipuAI model | `GLM-4-Flash` |
 | `OLLAMA_API_BASE_URL` | Ollama endpoint | `http://host.docker.internal:11434` |
 | `OLLAMA_API_MODEL` | Ollama model | `deepseek-r1:latest` |
+| `CODEX_RUNNER_URL` | Host-side Codex Runner endpoint when `LLM_PROVIDER=codex_runner` | `http://host.docker.internal:8790/review` |
+| `CODEX_RUNNER_TIMEOUT_SECONDS` | Codex Runner request timeout | `900` |
 
 ### Platform Access
 
@@ -319,6 +321,20 @@ Configure in `conf/.env`:
 When using Docker, the internal `feishu-relay` service is available at `http://feishu-relay:8090/notify`.
 
 ---
+
+## Codex Runner mode
+
+Keep the existing direct LLM mode by leaving `LLM_PROVIDER` unchanged. To use the host-side Codex CLI, set `LLM_PROVIDER=codex_runner` and point `CODEX_RUNNER_URL` at the Runner service. The Runner executes `codex exec --cd <CODEX_RUNNER_WORKDIR>`; that directory is the reviewed project checkout, and its `AGENTS.md` is loaded by Codex. `CODEX_RUNNER_CODEX_HOME` can isolate global Codex instructions from the personal `~/.codex` directory.
+
+Start the host Runner from the repository root:
+
+```bash
+CODEX_RUNNER_WORKDIR=/path/to/java-project \
+CODEX_RUNNER_PORT=8790 \
+python3 tools/codex_runner.py
+```
+
+Create the project instructions as `/path/to/java-project/AGENTS.md` (uppercase). The Runner uses that directory only for the Codex working tree; the Docker container does not need the project path mounted.
 
 ## Review Engine
 
