@@ -21,7 +21,10 @@ class NotificationTemplateTest(unittest.TestCase):
             url="https://gitlab.example.com/mr/1",
             review_result="## 评审结论\n- 综合评分：95",
             url_slug="demo",
-            webhook_data={},
+            webhook_data={
+                "object_attributes": {"title": "新增功能"},
+                "user": {"name": "李勤"},
+            },
             additions=12,
             deletions=3,
             last_commit_id="abc123",
@@ -37,19 +40,21 @@ class NotificationTemplateTest(unittest.TestCase):
 
         self.assertEqual(
             merged,
-            "✅ 示例项目｜已自动合并\n"
-            "feat/demo → dev\n"
-            "AI 评审通过，代码已自动合并。\n"
-            "查看 MR：https://gitlab.example.com/mr/1\n"
-            "处理人：@张三",
+            "PR: 新增功能  https://gitlab.example.com/mr/1\n"
+            "合并方向： feat/demo -> dev\n"
+            "创建人:  @李勤\n"
+            "当前状态: ✅ 已合并\n"
+            "评审意见摘要（详情查看PR）：\n"
+            "1、存在 SQL 注入风险，修复前不建议合并。",
         )
         self.assertEqual(
             unmerged,
-            "⚠️ 示例项目｜需要修改\n"
-            "feat/demo → dev\n"
-            "摘要：存在 SQL 注入风险，修复前不建议合并。\n"
-            "查看具体修改意见：https://gitlab.example.com/mr/1\n"
-            "处理人：@张三",
+            "PR: 新增功能  https://gitlab.example.com/mr/1\n"
+            "合并方向： feat/demo -> dev\n"
+            "创建人:  @李勤\n"
+            "当前状态: ⛔ 已驳回\n"
+            "评审意见摘要（详情查看PR）：\n"
+            "1、存在 SQL 注入风险，修复前不建议合并。",
         )
 
     def test_branch_rejection_template(self):
@@ -63,10 +68,33 @@ class NotificationTemplateTest(unittest.TestCase):
             "https://developer-docs.jrtzcloud.cn/rd-quality/git/git-branch.html",
         )
 
-        self.assertIn("已驳回自动合并", message)
-        self.assertIn("feature/demo → dev", message)
-        self.assertIn("分支规范：https://developer-docs.jrtzcloud.cn", message)
-        self.assertIn("处理人：@张三", message)
+        self.assertIn("PR: 示例项目  https://gitlab.example.com/mr/2", message)
+        self.assertIn("合并方向： feature/demo -> dev", message)
+        self.assertIn("当前状态: ⛔ 已驳回", message)
+        self.assertIn("2、分支规范：https://developer-docs.jrtzcloud.cn", message)
+        self.assertIn("创建人:  @张三", message)
+
+    def test_merge_request_template_is_bounded(self):
+        entity = MergeRequestReviewEntity(
+            project_name="示例项目",
+            author="张三",
+            source_branch="feat/demo",
+            target_branch="dev",
+            updated_at=1700000000,
+            commits=[],
+            score=95,
+            url="https://gitlab.example.com/mr/1",
+            review_result="",
+            url_slug="demo",
+            webhook_data={},
+            additions=0,
+            deletions=0,
+            last_commit_id="abc123",
+            review_summary="问题" * 5000,
+        )
+        message = _build_merge_request_message(entity)
+        self.assertLessEqual(len(message.encode("utf-8")), 2048)
+        self.assertIn("详情请查看 PR", message)
 
     def test_push_template_is_concise_chinese_and_complete(self):
         entity = PushReviewEntity(

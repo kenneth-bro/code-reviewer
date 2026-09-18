@@ -13,27 +13,29 @@ event_manager = {
     "push_reviewed": Signal(),
 }
 
+WECOM_TEXT_MAX_BYTES = 2048
+
 
 def _format_time(timestamp: int) -> str:
     return datetime.fromtimestamp(timestamp).astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _build_merge_request_message(entity: MergeRequestReviewEntity) -> str:
-    route = f"{entity.source_branch} → {entity.target_branch}"
-    if entity.auto_merged:
-        lines = [
-            f"✅ {entity.project_name}｜已自动合并",
-            route,
-            "AI 评审通过，代码已自动合并。",
-            f"查看 MR：{entity.url}",
-        ]
-    else:
-        lines = [f"⚠️ {entity.project_name}｜需要修改", route]
-        if entity.review_summary:
-            lines.append(f"摘要：{entity.review_summary}")
-        lines.append(f"查看具体修改意见：{entity.url}")
-    lines.append(f"处理人：@{entity.author}")
-    return "\n".join(lines)
+    attributes = (entity.webhook_data or {}).get("object_attributes") or {}
+    user = (entity.webhook_data or {}).get("user") or {}
+    title = attributes.get("title") or entity.project_name
+    author = user.get("name") or entity.author
+    status = "✅ 已合并" if entity.auto_merged else "⛔ 已驳回"
+    summary = entity.review_summary or "评审未通过，请查看 PR 详情。"
+    lines = [
+        f"PR: {title}  {entity.url}",
+        f"合并方向： {entity.source_branch} -> {entity.target_branch}",
+        f"创建人:  @{author}",
+        f"当前状态: {status}",
+        "评审意见摘要（详情查看PR）：",
+        f"1、{summary}",
+    ]
+    return _limit_notification_message("\n".join(lines))
 
 
 def _build_branch_rejection_message(
@@ -45,16 +47,27 @@ def _build_branch_rejection_message(
     reason: str,
     guide_url: str,
 ) -> str:
-    return "\n".join(
+    return _limit_notification_message("\n".join(
         [
-            f"⛔ {project_name}｜已驳回自动合并",
-            f"{source_branch} → {target_branch}",
-            f"原因：{reason}",
-            f"分支规范：{guide_url}",
-            f"查看 MR：{url}",
-            f"处理人：@{author}",
+            f"PR: {project_name}  {url}",
+            f"合并方向： {source_branch} -> {target_branch}",
+            f"创建人:  @{author}",
+            "当前状态: ⛔ 已驳回",
+            "评审意见摘要（详情查看PR）：",
+            f"1、{reason}",
+            f"2、分支规范：{guide_url}",
         ]
-    )
+    ))
+
+
+def _limit_notification_message(content: str) -> str:
+    suffix = "\n（摘要已截断，详情请查看 PR）"
+    if len(content.encode("utf-8")) <= WECOM_TEXT_MAX_BYTES:
+        return content
+
+    budget = WECOM_TEXT_MAX_BYTES - len(suffix.encode("utf-8"))
+    truncated = content.encode("utf-8")[:budget].decode("utf-8", errors="ignore")
+    return truncated + suffix
 
 
 def _build_push_message(entity: PushReviewEntity) -> str:
