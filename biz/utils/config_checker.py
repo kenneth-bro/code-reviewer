@@ -15,7 +15,15 @@ REQUIRED_ENV_VARS = [
 ]
 
 # Allowed LLM providers
-LLM_PROVIDERS = {"anthropic", "zhipuai", "openai", "deepseek", "ollama", "qwen"}
+LLM_PROVIDERS = {
+    "anthropic",
+    "zhipuai",
+    "openai",
+    "deepseek",
+    "ollama",
+    "qwen",
+    "codex_runner",
+}
 
 # Required keys per provider
 LLM_REQUIRED_KEYS = {
@@ -25,6 +33,7 @@ LLM_REQUIRED_KEYS = {
     "deepseek": ["DEEPSEEK_API_KEY", "DEEPSEEK_API_MODEL"],
     "ollama": ["OLLAMA_API_BASE_URL", "OLLAMA_API_MODEL"],
     "qwen": ["QWEN_API_KEY", "QWEN_API_MODEL"],
+    "codex_runner": ["CODEX_RUNNER_URL"],
 }
 
 
